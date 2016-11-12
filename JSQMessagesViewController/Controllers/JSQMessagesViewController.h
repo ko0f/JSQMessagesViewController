@@ -153,6 +153,8 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (assign, nonatomic) UIEdgeInsets additionalContentInset;
 
+@property (copy, nonatomic) NSString *systemCellIdentifier;
+
 #pragma mark - Class methods
 
 /**

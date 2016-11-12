@@ -26,24 +26,15 @@
 
 #import "JSQMessagesCollectionViewCellIncoming.h"
 #import "JSQMessagesCollectionViewCellOutgoing.h"
-#import "JSQMessagesCollectionViewCellSystem.h"
 
 #import "JSQMessagesTypingIndicatorFooterView.h"
 #import "JSQMessagesLoadEarlierHeaderView.h"
 
-#import "JSQMessagesToolbarContentView.h"
-#import "JSQMessagesInputToolbar.h"
-#import "JSQMessagesComposerTextView.h"
-
 #import "NSString+JSQMessages.h"
-#import "UIColor+JSQMessages.h"
 #import "NSBundle+JSQMessages.h"
-
-#import <MobileCoreServices/UTCoreTypes.h>
 
 #import <objc/runtime.h>
 
-#import "BQFontUtil.h"
 
 // Fixes rdar://26295020
 // See issue #1247 and Peter Steinberger's comment:
@@ -122,8 +113,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 @property (weak, nonatomic) IBOutlet JSQMessagesCollectionView *collectionView;
 @property (strong, nonatomic) IBOutlet JSQMessagesInputToolbar *inputToolbar;
 
-@property (weak, nonatomic) IBOutlet NSLayoutConstraint *toolbarHeightConstraint;
-@property (weak, nonatomic) IBOutlet NSLayoutConstraint *toolbarBottomLayoutGuide;
+@property (nonatomic) NSLayoutConstraint *toolbarHeightConstraint;
 
 @property (strong, nonatomic) NSIndexPath *selectedIndexPathForMenu;
 
@@ -165,8 +155,10 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     self.collectionView.delegate = self;
 
     self.inputToolbar.delegate = self;
+    self.inputToolbar.contentView.textView.placeHolder = [NSBundle jsq_localizedStringForKey:@"new_message"];
+    self.inputToolbar.contentView.textView.accessibilityLabel = [NSBundle jsq_localizedStringForKey:@"new_message"];
     self.inputToolbar.contentView.textView.delegate = self;
-    self.inputToolbar.contentView.textView.font = [BQFontUtil standardFontOfSize:StandardFontSize1];
+    self.inputToolbar.contentView.textView.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
     [self.inputToolbar removeFromSuperview];
 
     self.automaticallyScrollsToMostRecentMessage = YES;
@@ -184,7 +176,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 
     self.showLoadEarlierMessagesHeader = NO;
 
-    self.topContentAdditionalInset = 0.0f;
+    self.additionalContentInset = UIEdgeInsetsZero;
 
     [self jsq_updateCollectionViewInsets];
 }
@@ -225,9 +217,9 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     [self.collectionView reloadData];
 }
 
-- (void)setTopContentAdditionalInset:(CGFloat)topContentAdditionalInset
+- (void)setAdditionalContentInset:(UIEdgeInsets)additionalContentInset
 {
-    _topContentAdditionalInset = topContentAdditionalInset;
+    _additionalContentInset = additionalContentInset;
     [self jsq_updateCollectionViewInsets];
 }
 
@@ -246,7 +238,9 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 - (void)viewWillAppear:(BOOL)animated
 {
     [super viewWillAppear:animated];
-    self.toolbarHeightConstraint.constant = self.inputToolbar.preferredDefaultHeight;
+    if (!self.inputToolbar.contentView.textView.hasText) {
+        self.toolbarHeightConstraint.constant = self.inputToolbar.preferredDefaultHeight;
+    }
     [self.view layoutIfNeeded];
     [self.collectionView.collectionViewLayout invalidateLayout];
 
@@ -349,8 +343,6 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     textView.text = nil;
     [textView.undoManager removeAllActions];
 
-    [self.inputToolbar toggleSendButtonEnabled];
-
     [[NSNotificationCenter defaultCenter] postNotificationName:UITextViewTextDidChangeNotification object:textView];
 
     [self.collectionView.collectionViewLayout invalidateLayoutWithContext:[JSQMessagesCollectionViewFlowLayoutInvalidationContext context]];
@@ -422,9 +414,9 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     //  possibly a UIKit bug, see #480 on GitHub
     CGSize cellSize = [self.collectionView.collectionViewLayout sizeForItemAtIndexPath:indexPath];
     CGFloat maxHeightForVisibleMessage = CGRectGetHeight(self.collectionView.bounds)
-                                         - self.collectionView.contentInset.top
-                                         - self.collectionView.contentInset.bottom
-                                         - CGRectGetHeight(self.inputToolbar.bounds);
+    - self.collectionView.contentInset.top
+    - self.collectionView.contentInset.bottom
+    - CGRectGetHeight(self.inputToolbar.bounds);
     UICollectionViewScrollPosition scrollPosition = (cellSize.height > maxHeightForVisibleMessage) ? UICollectionViewScrollPositionBottom : UICollectionViewScrollPositionTop;
 
     [self.collectionView scrollToItemAtIndexPath:indexPath
@@ -504,6 +496,11 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     return 1;
 }
 
+- (UIColor *)collectionView:(JSQMessagesCollectionView *)collectionView textColorForItemAtIndexPath:(NSIndexPath *)indexPath isOutgoing:(BOOL)isOutgoing
+{
+    return [UIColor whiteColor];
+}
+
 - (UICollectionViewCell *)collectionView:(JSQMessagesCollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath
 {
     id<JSQMessageData> messageItem = [collectionView.dataSource collectionView:collectionView messageDataForItemAtIndexPath:indexPath];
@@ -511,8 +508,12 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 
     BOOL isOutgoingMessage = [self isOutgoingMessage:messageItem];
     BOOL isMediaMessage = [messageItem isMediaMessage];
+    BOOL isSystemMessage = [messageItem isSystemMessage];
 
     NSString *cellIdentifier = nil;
+    if (isSystemMessage) {
+        cellIdentifier = self.systemCellIdentifier;
+    } else
     if (isMediaMessage) {
         cellIdentifier = isOutgoingMessage ? self.outgoingMediaCellIdentifier : self.incomingMediaCellIdentifier;
     }
@@ -521,10 +522,15 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     }
 
     JSQMessagesCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:cellIdentifier forIndexPath:indexPath];
+    cell.accessibilityIdentifier = [NSString stringWithFormat:@"(%ld, %ld)", (long)indexPath.section, (long)indexPath.row];
     cell.delegate = collectionView;
 
+    if (isSystemMessage) {
+        cell.textView.text = [messageItem text];
+    } else
     if (!isMediaMessage) {
         cell.textView.text = [messageItem text];
+        cell.textView.textColor = [self collectionView:collectionView textColorForItemAtIndexPath:indexPath isOutgoing:isOutgoingMessage];
         NSParameterAssert(cell.textView.text != nil);
 
         id<JSQMessageBubbleImageDataSource> bubbleImageDataSource = [collectionView.dataSource collectionView:collectionView messageBubbleImageDataForItemAtIndexPath:indexPath];
@@ -659,6 +665,13 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     //  temporarily disable 'selectable' to prevent this issue
     JSQMessagesCollectionViewCell *selectedCell = (JSQMessagesCollectionViewCell *)[collectionView cellForItemAtIndexPath:indexPath];
     selectedCell.textView.selectable = NO;
+    
+    //  it will reset the font and fontcolor when selectable is NO
+    //  however, the actual font and fontcolor in textView do not get changed
+    //  in order to preserve link colors, we need to re-assign the font and fontcolor when selectable is NO
+    //  see GitHub issues #1675 and #1759
+    selectedCell.textView.textColor = selectedCell.textView.textColor;
+    selectedCell.textView.font = selectedCell.textView.font;
 
     return YES;
 }
@@ -680,7 +693,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 
         if ([messageData isMediaMessage]) {
             id<JSQMessageMediaData> mediaData = [messageData media];
-            if ([messageData respondsToSelector:@selector(mediaDataType)]) {
+            if ([messageData conformsToProtocol:@protocol(JSQMessageData)]) {
                 [[UIPasteboard generalPasteboard] setValue:[mediaData mediaData]
                                          forPasteboardType:[mediaData mediaDataType]];
             }
@@ -736,21 +749,21 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 
 - (void)messagesInputToolbar:(JSQMessagesInputToolbar *)toolbar didPressLeftBarButton:(UIButton *)sender
 {
-    if (toolbar.sendButtonOnRight) {
-        [self didPressAccessoryButton:sender];
-    }
-    else {
+    if (toolbar.sendButtonLocation == JSQMessagesInputSendButtonLocationLeft) {
         [self didPressSendButton:sender
                  withMessageText:[self jsq_currentlyComposedMessageText]
                         senderId:[self.collectionView.dataSource senderId]
                senderDisplayName:[self.collectionView.dataSource senderDisplayName]
                             date:[NSDate date]];
     }
+    else {
+        [self didPressAccessoryButton:sender];
+    }
 }
 
 - (void)messagesInputToolbar:(JSQMessagesInputToolbar *)toolbar didPressRightBarButton:(UIButton *)sender
 {
-    if (toolbar.sendButtonOnRight) {
+    if (toolbar.sendButtonLocation == JSQMessagesInputSendButtonLocationRight) {
         [self didPressSendButton:sender
                  withMessageText:[self jsq_currentlyComposedMessageText]
                         senderId:[self.collectionView.dataSource senderId]
@@ -794,12 +807,8 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     [textView becomeFirstResponder];
 
     if (self.automaticallyScrollsToMostRecentMessage) {
-        [self performSelector:@selector(_delayedScrollToBottom) withObject:nil afterDelay:0.2];
+        [self scrollToBottomAnimated:YES];
     }
-}
-
-- (void)_delayedScrollToBottom {
-    [self scrollToBottomAnimated:YES];
 }
 
 - (void)textViewDidChange:(UITextView *)textView
@@ -807,8 +816,6 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     if (textView != self.inputToolbar.contentView.textView) {
         return;
     }
-
-    [self.inputToolbar toggleSendButtonEnabled];
 }
 
 - (void)textViewDidEndEditing:(UITextView *)textView
@@ -860,17 +867,24 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
     self.selectedIndexPathForMenu = nil;
 }
 
+- (void)preferredContentSizeChanged:(NSNotification *)notification
+{
+    [self.collectionView.collectionViewLayout invalidateLayout];
+    [self.collectionView setNeedsLayout];
+}
+
 #pragma mark - Collection view utilities
 
 - (void)jsq_updateCollectionViewInsets
 {
-    [self jsq_setCollectionViewInsetsTopValue:self.topLayoutGuide.length + self.topContentAdditionalInset
-                                  bottomValue:CGRectGetMaxY(self.collectionView.frame) - CGRectGetMinY(self.inputToolbar.frame)];
+    const CGFloat top = self.additionalContentInset.top;
+    const CGFloat bottom = CGRectGetMaxY(self.collectionView.frame) - CGRectGetMinY(self.inputToolbar.frame) + self.additionalContentInset.bottom;
+    [self jsq_setCollectionViewInsetsTopValue:top bottomValue:bottom];
 }
 
 - (void)jsq_setCollectionViewInsetsTopValue:(CGFloat)top bottomValue:(CGFloat)bottom
 {
-    UIEdgeInsets insets = UIEdgeInsetsMake(top, 0.0f, bottom, 0.0f);
+    UIEdgeInsets insets = UIEdgeInsetsMake(self.topLayoutGuide.length + top, 0.0f, bottom, 0.0f);
     self.collectionView.contentInset = insets;
     self.collectionView.scrollIndicatorInsets = insets;
 }
@@ -886,34 +900,44 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 
 - (void)jsq_registerForNotifications:(BOOL)registerForNotifications
 {
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
     if (registerForNotifications) {
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(jsq_didReceiveKeyboardWillChangeFrameNotification:)
-                                                     name:UIKeyboardWillChangeFrameNotification
-                                                   object:nil];
+        [center addObserver:self
+                   selector:@selector(jsq_didReceiveKeyboardWillChangeFrameNotification:)
+                       name:UIKeyboardWillChangeFrameNotification
+                     object:nil];
 
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(didReceiveMenuWillShowNotification:)
-                                                     name:UIMenuControllerWillShowMenuNotification
-                                                   object:nil];
+        [center addObserver:self
+                   selector:@selector(didReceiveMenuWillShowNotification:)
+                       name:UIMenuControllerWillShowMenuNotification
+                     object:nil];
 
-        [[NSNotificationCenter defaultCenter] addObserver:self
-                                                 selector:@selector(didReceiveMenuWillHideNotification:)
-                                                     name:UIMenuControllerWillHideMenuNotification
-                                                   object:nil];
+        [center addObserver:self
+                   selector:@selector(didReceiveMenuWillHideNotification:)
+                       name:UIMenuControllerWillHideMenuNotification
+                     object:nil];
+
+        [center addObserver:self
+                   selector:@selector(preferredContentSizeChanged:)
+                       name:UIContentSizeCategoryDidChangeNotification
+                     object:nil];
     }
     else {
-        [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                        name:UIKeyboardWillChangeFrameNotification
-                                                      object:nil];
+        [center removeObserver:self
+                          name:UIKeyboardWillChangeFrameNotification
+                        object:nil];
 
-        [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                        name:UIMenuControllerWillShowMenuNotification
-                                                      object:nil];
+        [center removeObserver:self
+                          name:UIMenuControllerWillShowMenuNotification
+                        object:nil];
 
-        [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                        name:UIMenuControllerWillHideMenuNotification
-                                                      object:nil];
+        [center removeObserver:self
+                          name:UIMenuControllerWillHideMenuNotification
+                        object:nil];
+
+        [center removeObserver:self
+                          name:UIContentSizeCategoryDidChangeNotification
+                        object:nil];
     }
 }
 
@@ -936,8 +960,9 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
                           delay:0.0
                         options:animationCurveOption
                      animations:^{
-                         [self jsq_setCollectionViewInsetsTopValue:self.collectionView.contentInset.top
-                                                       bottomValue:CGRectGetHeight(keyboardEndFrame)];
+                         const UIEdgeInsets insets = self.additionalContentInset;
+                         [self jsq_setCollectionViewInsetsTopValue:insets.top
+                                                       bottomValue:CGRectGetHeight(keyboardEndFrame) + insets.bottom];
                      }
                      completion:nil];
 }

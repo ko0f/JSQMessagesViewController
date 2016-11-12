@@ -26,6 +26,7 @@
 
 #import "JSQMessagesCollectionViewCellIncoming.h"
 #import "JSQMessagesCollectionViewCellOutgoing.h"
+#import "JSQMessagesCollectionViewCellSystem.h"
 
 #import "JSQMessagesTypingIndicatorFooterView.h"
 #import "JSQMessagesLoadEarlierHeaderView.h"
@@ -168,6 +169,8 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 
     self.incomingCellIdentifier = [JSQMessagesCollectionViewCellIncoming cellReuseIdentifier];
     self.incomingMediaCellIdentifier = [JSQMessagesCollectionViewCellIncoming mediaCellReuseIdentifier];
+
+    self.systemCellIdentifier = [JSQMessagesCollectionViewCellSystem cellReuseIdentifier];
 
     // NOTE: let this behavior be opt-in for now
     // [JSQMessagesCollectionViewCell registerMenuAction:@selector(delete:)];
@@ -878,7 +881,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
 - (void)jsq_updateCollectionViewInsets
 {
     const CGFloat top = self.additionalContentInset.top;
-    const CGFloat bottom = CGRectGetMaxY(self.collectionView.frame) - CGRectGetMinY(self.inputToolbar.frame) + self.additionalContentInset.bottom;
+    const CGFloat bottom = self.inputToolbar.frame.size.height + self.additionalContentInset.bottom;
     [self jsq_setCollectionViewInsetsTopValue:top bottomValue:bottom];
 }
 

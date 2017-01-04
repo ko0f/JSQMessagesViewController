@@ -97,6 +97,10 @@
 
 #pragma mark - NSObject
 
+- (BOOL)isSystemMessage {
+    return NO;
+}
+
 - (BOOL)isEqual:(id)object
 {
     if (self == object) {

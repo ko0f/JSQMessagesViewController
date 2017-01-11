@@ -827,7 +827,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
         return;
     }
 
-    [textView resignFirstResponder];
+    // [textView resignFirstResponder];
 }
 
 #pragma mark - Notifications

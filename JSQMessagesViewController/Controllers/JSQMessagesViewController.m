@@ -535,7 +535,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
         cell.textView.text = [messageItem text];
         cell.textView.textColor = [self collectionView:collectionView textColorForItemAtIndexPath:indexPath isOutgoing:isOutgoingMessage];
         NSParameterAssert(cell.textView.text != nil);
-
+        
         id<JSQMessageBubbleImageDataSource> bubbleImageDataSource = [collectionView.dataSource collectionView:collectionView messageBubbleImageDataForItemAtIndexPath:indexPath];
         cell.messageBubbleImageView.image = [bubbleImageDataSource messageBubbleImage];
         cell.messageBubbleImageView.highlightedImage = [bubbleImageDataSource messageBubbleHighlightedImage];
@@ -545,7 +545,7 @@ static void JSQInstallWorkaroundForSheetPresentationIssue26295020(void) {
         cell.mediaView = [messageMedia mediaView] ?: [messageMedia mediaPlaceholderView];
         NSParameterAssert(cell.mediaView != nil);
     }
-
+    
     BOOL needsAvatar = YES;
     if (isOutgoingMessage && CGSizeEqualToSize(collectionView.collectionViewLayout.outgoingAvatarViewSize, CGSizeZero)) {
         needsAvatar = NO;
